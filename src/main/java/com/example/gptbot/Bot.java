@@ -23,12 +23,12 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
 public class Bot extends TelegramLongPollingBot {
-    private static String context = null;
+    private static String context = "";
     private final String voiceEndpoint = "https://api.voice.steos.io/v1/get/tts";
-    private final String voiceApiKey = "4ca8ba0d-5b66-42ac-8b68-b6bee3968260";
+    private final String voiceApiKey = "73724f57-2075-4698-975a-de5f3873ab8a";
     private final String botToken = "6699199033:AAFvbdveVGoGkpz_Otpqqgh-LreAiAByt1w";
-    private final String gptApiKey = "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";
-    private final String gptEndpoint = "https://api.openai.com/v1/chat/completions";
+    private final String gptApiKey = "sk-cff02918c42843c49a2298b85c48ea82";
+    private final String gptEndpoint = "https://api.deepseek.com/v1/chat/completions";
     @Override
     public void onUpdateReceived(Update update) {
         if (update.hasMessage() && update.getMessage().hasText()) {
@@ -37,6 +37,7 @@ public class Bot extends TelegramLongPollingBot {
 
             String userMessage = message.getText().replace("\"", "").replace("\n","");
             saveRequestToFile(userMessage);
+
             String gptResponse = null;
             try {
                 gptResponse = getGPTResponse(userMessage);
@@ -45,6 +46,7 @@ public class Bot extends TelegramLongPollingBot {
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
+            context += extractContentFromResponse(gptResponse) + " ";
             System.out.println(gptResponse);
             SendAudio sendAudio = new SendAudio();
             sendAudio.setChatId(chatId);
@@ -64,9 +66,10 @@ public class Bot extends TelegramLongPollingBot {
                      .uri(URI.create(gptEndpoint))
                      .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + gptApiKey)
-                     .POST(HttpRequest.BodyPublishers.ofString(buildRequestBody(userMessage,context)))
+                     .POST(HttpRequest.BodyPublishers.ofString(buildRequestBody(userMessage, context)))
                      .build();
              HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            System.out.println(response.body());
              return response.body();
         }
     private void updateContext(String apiResponse) {
@@ -153,10 +156,30 @@ public class Bot extends TelegramLongPollingBot {
         return new InputFile();
     }
     private String buildRequestBody(String userMessage, String context) {
-        if (context == null) {
-            return "{\"messages\": [{\"role\": \"user\", \"content\": \"" + userMessage + "\"}], \"model\": \"gpt-3.5-turbo-16k\"}";
+        if (context.equals("")) {
+            return "{\n" +
+                    "  \"messages\": [\n" +
+                    "    {\n" +
+                    "      \"content\": \"" + userMessage + "\",\n" +
+                    "      \"role\": \"user\"\n" +
+                    "    }\n" +
+                    "  ],\n" +
+                    "  \"model\": \"deepseek-chat\"\n" +
+                    "}";
         } else {
-            return "{\"messages\": [{\"role\": \"user\", \"content\": \"" + userMessage + "\"}], \"model\": \"gpt-3.5-turbo-16k\", \"context\": \"" + context + "\"}";
+            return "{\n" +
+                "  \"messages\": [\n" +
+                        "    {\n" +
+                        "      \"content\": \"" + context + "\",\n" +
+                        "      \"role\": \"assistant\"\n" +
+                        "    },\n" +
+                        "    {\n" +
+                        "      \"content\": \"" + userMessage + "\",\n" +
+                        "      \"role\": \"user\"\n" +
+                        "    }\n" +
+                        "  ],\n" +
+                        "  \"model\": \"deepseek-chat\"\n" +
+                        "}";
         }
     }
     @Override
